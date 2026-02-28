@@ -1,0 +1,21 @@
+Add Sprint 2: Senso, Airbyte, Overshoot integrations + monitoring
+
+New services:
+- senso_service: Context OS for grounded knowledge (search, generate, triggers, seed compliance docs)
+- airbyte_service: Stripe billing anomaly detection + Slack alerts
+- overshoot_service: Vision AI for financial broadcast monitoring
+
+New router:
+- /api/monitor/status — integration health check
+- /api/monitor/scan — trigger manual scan across all sources
+- /api/monitor/demo — pre-built detections for reliable demo
+
+Background worker:
+- worker/monitor.py — persistent monitoring loop for Render Background Worker
+
+Wiring:
+- search_task_context now queries Senso for verified policy guidance
+- end_task now sends completion summary to Slack
+- render.yaml updated with worker service + new env vars
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>

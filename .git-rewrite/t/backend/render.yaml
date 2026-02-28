@@ -1,0 +1,60 @@
+services:
+  # API + Webhook server
+  - type: web
+    name: lifepilot-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: VAPI_API_KEY
+        sync: false
+      - key: VAPI_PUBLIC_KEY
+        sync: false
+      - key: VAPI_ASSISTANT_ID
+        sync: false
+      - key: VAPI_PHONE_NUMBER_ID
+        sync: false
+      - key: VAPI_TOOL_IDS
+        sync: false
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USER
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: SENSO_API_KEY
+        sync: false
+      - key: OVERSHOOT_API_KEY
+        sync: false
+      - key: STRIPE_API_KEY
+        sync: false
+      - key: SLACK_BOT_TOKEN
+        sync: false
+      - key: SLACK_CHANNEL_ID
+        sync: false
+
+  # Persistent monitoring agent (no timeout!)
+  - type: worker
+    name: lifepilot-monitor
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m worker.monitor
+    envVars:
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: SENSO_API_KEY
+        sync: false
+      - key: OVERSHOOT_API_KEY
+        sync: false
+      - key: STRIPE_API_KEY
+        sync: false
+      - key: SLACK_BOT_TOKEN
+        sync: false
+      - key: SLACK_CHANNEL_ID
+        sync: false
+      - key: SCAN_INTERVAL
+        value: "900"

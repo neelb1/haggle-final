@@ -1,0 +1,11 @@
+tree 425472b38e4e4c7e222e7c11526dfbeecbdb5aea
+parent f7c3908697a652671d6712439546c681b1049740
+author neelb1 <nbillimo@ucsc.edu> 1771983654 -0800
+committer neelb1 <nbillimo@ucsc.edu> 1771983654 -0800
+
+Fix Tavily null answer crash in research_for_task
+
+Tavily API can return None for the answer field (not just missing).
+Use `or` instead of default param to handle both cases.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
