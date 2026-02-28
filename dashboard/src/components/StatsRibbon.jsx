@@ -29,7 +29,7 @@ function AnimatedNumber({ value, prefix = "", suffix = "", className = "" }) {
   );
 }
 
-export default function StatsRibbon({ stats, onRunDemo, onResetDemo, onScanBill, demoRunning, scanningBill }) {
+export default function StatsRibbon({ stats, onRunDemo, onResetDemo, onScanBill, onUnlock, demoRunning, scanningBill, unlocked }) {
   const s = stats || {};
   const hasSavings = (s.total_annual_savings || 0) > 0;
 
@@ -78,56 +78,67 @@ export default function StatsRibbon({ stats, onRunDemo, onResetDemo, onScanBill,
 
         {/* Demo controls */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={onScanBill}
-            disabled={scanningBill}
-            className={`text-sm font-semibold px-4 py-2 rounded-xl transition-all ${
-              scanningBill
-                ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                : "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-lg hover:shadow-amber-500/20 hover:-translate-y-0.5"
-            } disabled:cursor-not-allowed`}
-          >
-            {scanningBill ? (
-              <span className="flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4" strokeDashoffset="10" />
-                </svg>
-                Scanning...
-              </span>
-            ) : (
-              "Scan Bill"
-            )}
-          </button>
-          <button
-            onClick={onResetDemo}
-            disabled={demoRunning}
-            className="text-[11px] text-gray-500 hover:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-dark-700 transition-all disabled:opacity-30"
-          >
-            Reset
-          </button>
-          <button
-            onClick={onRunDemo}
-            disabled={demoRunning}
-            className={`relative text-sm font-semibold px-6 py-2 rounded-xl transition-all overflow-hidden ${
-              demoRunning
-                ? "bg-accent-purple/20 text-accent-purple border border-accent-purple/30"
-                : "bg-gradient-to-r from-accent-blue to-accent-purple text-white hover:shadow-xl hover:shadow-accent-purple/30 hover:-translate-y-0.5"
-            } disabled:cursor-not-allowed`}
-          >
-            {demoRunning && <span className="absolute inset-0 shimmer" />}
-            <span className="relative">
-              {demoRunning ? (
-                <span className="flex items-center gap-2">
-                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4" strokeDashoffset="10" />
-                  </svg>
-                  Agent Working...
+          {!unlocked ? (
+            <button
+              onClick={onUnlock}
+              className="text-sm font-semibold px-5 py-2 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 text-white hover:shadow-lg hover:shadow-amber-500/20 hover:-translate-y-0.5 transition-all"
+            >
+              Unlock Demo
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={onScanBill}
+                disabled={scanningBill}
+                className={`text-sm font-semibold px-4 py-2 rounded-xl transition-all ${
+                  scanningBill
+                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                    : "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-lg hover:shadow-amber-500/20 hover:-translate-y-0.5"
+                } disabled:cursor-not-allowed`}
+              >
+                {scanningBill ? (
+                  <span className="flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4" strokeDashoffset="10" />
+                    </svg>
+                    Scanning...
+                  </span>
+                ) : (
+                  "Scan Bill"
+                )}
+              </button>
+              <button
+                onClick={onResetDemo}
+                disabled={demoRunning}
+                className="text-[11px] text-gray-500 hover:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-dark-700 transition-all disabled:opacity-30"
+              >
+                Reset
+              </button>
+              <button
+                onClick={onRunDemo}
+                disabled={demoRunning}
+                className={`relative text-sm font-semibold px-6 py-2 rounded-xl transition-all overflow-hidden ${
+                  demoRunning
+                    ? "bg-accent-purple/20 text-accent-purple border border-accent-purple/30"
+                    : "bg-gradient-to-r from-accent-blue to-accent-purple text-white hover:shadow-xl hover:shadow-accent-purple/30 hover:-translate-y-0.5"
+                } disabled:cursor-not-allowed`}
+              >
+                {demoRunning && <span className="absolute inset-0 shimmer" />}
+                <span className="relative">
+                  {demoRunning ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4" strokeDashoffset="10" />
+                      </svg>
+                      Agent Working...
+                    </span>
+                  ) : (
+                    "Run Demo"
+                  )}
                 </span>
-              ) : (
-                "Run Demo"
-              )}
-            </span>
-          </button>
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

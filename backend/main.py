@@ -3,10 +3,11 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from services.neo4j_service import neo4j_service
 from services import senso_service, postgres_service
@@ -47,10 +48,35 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── Demo protection: block action endpoints unless secret header present ──
+DEMO_SECRET = os.getenv("DEMO_SECRET", "")
+# Endpoints that cost money / trigger calls — require X-Demo-Secret header
+PROTECTED_PREFIXES = [
+    "/api/demo/run", "/api/demo/reset", "/api/demo/user-consult",
+    "/api/bills/analyze", "/api/bills/compare", "/api/bills/document",
+    "/api/monitor/scan", "/api/monitor/scout",
+    "/api/user/call",
+]
+
+class DemoGuardMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if DEMO_SECRET and request.method == "POST":
+            path = request.url.path
+            if any(path.startswith(p) for p in PROTECTED_PREFIXES):
+                token = request.headers.get("x-demo-secret", "")
+                if token != DEMO_SECRET:
+                    return JSONResponse(
+                        status_code=403,
+                        content={"error": "Demo locked. Not authorized."},
+                    )
+        return await call_next(request)
+
+app.add_middleware(DemoGuardMiddleware)
+
 # CORS — allow dashboard frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Tighten for production
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,

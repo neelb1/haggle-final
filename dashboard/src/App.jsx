@@ -11,7 +11,7 @@ import CallTimeline from "./components/CallTimeline";
 import IntegrationShowcase from "./components/IntegrationShowcase";
 import Toast from "./components/Toast";
 import { useSSE } from "./hooks/useSSE";
-import { api } from "./api";
+import { api, setDemoSecret, getDemoSecret } from "./api";
 
 function TabBar({ tabs, active, onChange }) {
   return (
@@ -58,6 +58,16 @@ export default function App() {
   const [scanningBill, setScanningBill] = useState(false);
   const [centerTab, setCenterTab] = useState(0);
   const [rightTab, setRightTab] = useState(0);
+  const [unlocked, setUnlocked] = useState(!!getDemoSecret());
+
+  const handleUnlock = () => {
+    const pin = prompt("Enter demo pin:");
+    if (pin) {
+      setDemoSecret(pin);
+      setUnlocked(true);
+      setToast({ type: "success", message: "Demo unlocked" });
+    }
+  };
 
   const refreshStats = useCallback(async () => {
     try {
@@ -86,9 +96,22 @@ export default function App() {
       setRightTab(1);
     }
 
+    // Phone number ready — show toast with number to call
+    if (latest.type === "call_status" && latest.data?.status === "awaiting_call") {
+      const phone = latest.data.agent_phone_display || "(208) 675-1229";
+      const company = latest.data.company || "the company";
+      setToast({
+        type: "info",
+        message: `Call ${phone} now!`,
+        detail: `You play ${company} — the agent negotiates`,
+      });
+      setDemoRunning(false);
+    }
+
     // Toast for completions
     if (latest.type === "call_status" && latest.data?.status === "ended" && latest.data?.outcome === "success") {
       setToast({ type: "success", message: `Call completed successfully` });
+      setDemoRunning(false);
     }
     if (latest.type === "graph_updated" && latest.data?.details?.monthly_savings) {
       const s = latest.data.details;
@@ -127,19 +150,17 @@ export default function App() {
   const handleRunDemo = async () => {
     setDemoRunning(true);
     try {
-      // Runs research (Tavily + Senso), then shows agent phone number for LIVE Vapi call
-      const result = await api.runDemo();
+      // Starts background: mock user consult → research → SSE pushes phone number
+      await api.runDemo();
       setToast({
         type: "info",
-        message: `Call ${result.agent_phone_display} now!`,
-        detail: `You play ${result.message?.split("You play ")[1] || "the company rep"}`,
+        message: "Demo started — user consult playing...",
+        detail: "Watch the live feed. Phone number appears after research.",
       });
-      setTimeout(refreshStats, 2000);
     } catch (e) {
       console.error("Demo failed:", e);
       setToast({ type: "error", message: "Demo failed — " + (e.message || "try reset") });
-    } finally {
-      setTimeout(() => setDemoRunning(false), 5000);
+      setDemoRunning(false);
     }
   };
 
@@ -180,8 +201,10 @@ export default function App() {
         onRunDemo={handleRunDemo}
         onResetDemo={handleResetDemo}
         onScanBill={handleScanBill}
+        onUnlock={handleUnlock}
         demoRunning={demoRunning}
         scanningBill={scanningBill}
+        unlocked={unlocked}
       />
 
       <main className="flex-1 grid grid-cols-12 gap-2.5 p-2.5 min-h-0">

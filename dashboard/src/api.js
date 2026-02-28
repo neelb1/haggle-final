@@ -1,10 +1,21 @@
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
+// Demo secret — stored in sessionStorage so only you have it
+let _demoSecret = sessionStorage.getItem("demo_secret") || "";
+export function setDemoSecret(secret) {
+  _demoSecret = secret;
+  sessionStorage.setItem("demo_secret", secret);
+}
+export function getDemoSecret() { return _demoSecret; }
+
 async function request(path, options = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (_demoSecret) headers["x-demo-secret"] = _demoSecret;
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers,
     ...options,
   });
+  if (res.status === 403) throw new Error("Demo locked — enter pin first");
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }

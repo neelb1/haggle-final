@@ -706,14 +706,147 @@ async def _phase_cancellation_resolution(
     }
 
 
+# ── Mock User Consult Script (trimmed for demo) ─────────────
+
+_DEMO_CONSULT_SCRIPT: list[tuple[str, str, float]] = [
+    ("agent",
+     "Hi Neel, this is Haggle. I've finished scanning your accounts and found "
+     "some savings opportunities — do you have a minute?",
+     1.5),
+    ("user",
+     "Yeah, go ahead.",
+     1.2),
+    ("agent",
+     "Your Comcast bill jumped from $55 to $85 last month — a 54% increase. "
+     "The promotional rate expired. T-Mobile 5G Home Internet is $50 and "
+     "AT&T Fiber is $55 in your area right now.",
+     2.0),
+    ("user",
+     "Yeah I noticed that. That's annoying.",
+     1.2),
+    ("agent",
+     "I can call their retention department and negotiate it down to around $65. "
+     "Customers who mention competitor rates usually get a 12-month loyalty discount. "
+     "Should I make the call?",
+     1.8),
+    ("user",
+     "Yes, do it.",
+     1.0),
+    ("agent",
+     "On it. I'll call Comcast retention now and get your rate back down. "
+     "Stand by — I'll update you when it's done.",
+     1.2),
+]
+
+
+# ── Full Demo Background Runner ─────────────────────────────
+
+async def _run_full_demo(task_id: str):
+    """
+    Full demo flow:
+      1. Mock user consult (simulated conversation)
+      2. Research phase (Tavily + Senso)
+      3. Show phone number for live Vapi call
+    """
+    task = store.get_task(task_id)
+    consult_call_id = f"consult_{uuid.uuid4().hex[:10]}"
+
+    # ── Phase 0: Mock user consult ────────────────────────────
+    await store.push_event(SSEEvent(
+        type=SSEEventType.CALL_STATUS,
+        data={
+            "task_id": task_id,
+            "call_id": consult_call_id,
+            "status": "ringing",
+            "company": "Neel (User Consult)",
+            "phone_number": "+15550000001",
+            "call_type": "user_consult",
+        },
+    ))
+    await asyncio.sleep(1.2)
+
+    await store.push_event(SSEEvent(
+        type=SSEEventType.CALL_STATUS,
+        data={
+            "task_id": task_id,
+            "call_id": consult_call_id,
+            "status": "in_progress",
+            "call_type": "user_consult",
+            "message": "User consult call connected",
+        },
+    ))
+    await asyncio.sleep(0.6)
+
+    # Stream the consult transcript
+    for role, text, delay in _DEMO_CONSULT_SCRIPT:
+        await asyncio.sleep(delay)
+        await store.push_event(SSEEvent(
+            type=SSEEventType.TRANSCRIPT,
+            data={
+                "task_id": task_id,
+                "call_id": consult_call_id,
+                "role": role,
+                "text": text,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "call_type": "user_consult",
+            },
+        ))
+
+    await asyncio.sleep(0.5)
+
+    # Consult call ended
+    await store.push_event(SSEEvent(
+        type=SSEEventType.CALL_STATUS,
+        data={
+            "task_id": task_id,
+            "call_id": consult_call_id,
+            "status": "ended",
+            "call_type": "user_consult",
+            "duration_seconds": 28,
+            "message": "User confirmed: negotiate Comcast rate",
+        },
+    ))
+
+    await asyncio.sleep(1.0)
+
+    # ── Phase 1: Research (Tavily + Senso) ────────────────────
+    research_data = await _phase_research(
+        task_id=task_id,
+        company=task.company,
+        action=task.action.value,
+        service_type=task.service_type or "",
+    )
+
+    # ── Phase 2: Show phone number for live call ──────────────
+    agent_phone = "+12086751229"
+    agent_phone_display = "(208) 675-1229"
+
+    call_id = _generate_call_id()
+    store.update_task(task_id, status=TaskStatus.CALLING, call_id=call_id)
+    refreshed = store.get_task(task_id)
+    await store.push_task_update(refreshed)
+
+    await store.push_event(SSEEvent(
+        type=SSEEventType.CALL_STATUS,
+        data={
+            "task_id": task_id,
+            "call_id": call_id,
+            "status": "awaiting_call",
+            "company": task.company,
+            "agent_phone": agent_phone,
+            "agent_phone_display": agent_phone_display,
+            "message": f"Call {agent_phone_display} — you play {task.company}, the agent negotiates",
+        },
+    ))
+
+
 # ── Endpoints ────────────────────────────────────────────────
 
 @router.post("/api/demo/run")
 async def demo_run():
     """
-    Run a live agent demo: research via Tavily, then trigger a real Vapi
-    outbound call to the user's phone. The Vapi webhooks handle transcripts,
-    tool calls, and call completion automatically.
+    Run the full demo: mock user consult → research → live Vapi call.
+    Returns immediately; SSE events drive the dashboard in real-time.
     """
     # Find the first pending task
     pending_tasks = [t for t in store.list_tasks() if t.status == TaskStatus.PENDING]
@@ -731,44 +864,13 @@ async def demo_run():
         task_id, task.company, task.action.value,
     )
 
-    # ── Phase 1: Research (populates dashboard + gives agent context) ──
-    research_data = await _phase_research(
-        task_id=task_id,
-        company=task.company,
-        action=task.action.value,
-        service_type=task.service_type or "",
-    )
-
-    # ── Phase 2: Prompt user to call the agent (user roleplays as the company) ──
-    agent_phone = "+12086751229"
-    agent_phone_display = "(208) 675-1229"
-
-    # Mark task as ready for call
-    call_id = _generate_call_id()
-    store.update_task(task_id, status=TaskStatus.CALLING, call_id=call_id)
-    refreshed = store.get_task(task_id)
-    await store.push_task_update(refreshed)
-
-    # Push SSE event telling the dashboard to show the phone number
-    await store.push_event(SSEEvent(
-        type=SSEEventType.CALL_STATUS,
-        data={
-            "task_id": task_id,
-            "call_id": call_id,
-            "status": "awaiting_call",
-            "company": task.company,
-            "agent_phone": agent_phone,
-            "agent_phone_display": agent_phone_display,
-            "message": f"Call {agent_phone_display} — you play {task.company}, the agent negotiates",
-        },
-    ))
+    # Kick off the full demo flow in the background
+    asyncio.create_task(_run_full_demo(task_id))
 
     return {
-        "status": "awaiting_call",
+        "status": "demo_started",
         "task_id": task_id,
-        "agent_phone": agent_phone,
-        "agent_phone_display": agent_phone_display,
-        "message": f"Research complete! Call {agent_phone_display} to start the live demo. You play {task.company}.",
+        "message": "Demo started — watch the dashboard. User consult plays first, then call the agent.",
     }
 
 
