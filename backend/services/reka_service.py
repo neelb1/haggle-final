@@ -5,7 +5,7 @@ Reka Vision Integration
 - Extract structured financial data from PDFs and screenshots
 - Feed extracted data into Neo4j and auto-create negotiation tasks
 
-Models: reka-flash (fast, cheap) | reka-core (high quality)
+Models: reka-flash-3 (fast, cheap) | reka-core (high quality)
 Content types: image_url, video_url, audio_url, pdf_url
 """
 
@@ -21,13 +21,13 @@ _client = None
 
 
 def get_client():
-    """Lazy-init Reka client."""
+    """Lazy-init async Reka client."""
     global _client
     if _client is None and config.REKA_API_KEY:
         try:
-            from reka.client import Reka
-            _client = Reka(api_key=config.REKA_API_KEY)
-            logger.info("Reka Vision client initialized")
+            from reka.client import AsyncReka
+            _client = AsyncReka(api_key=config.REKA_API_KEY)
+            logger.info("Reka Vision async client initialized")
         except ImportError:
             logger.warning("reka-api package not installed — run: pip install reka-api")
         except Exception as e:
@@ -37,7 +37,6 @@ def get_client():
 
 def _parse_json_response(content: str) -> dict:
     """Try to parse JSON from Reka response, handling markdown code blocks."""
-    # Strip markdown code fences if present
     text = content.strip()
     if text.startswith("```json"):
         text = text[7:]
@@ -71,14 +70,14 @@ async def analyze_bill_image(image_url: str) -> dict:
     """
     client = get_client()
     if not client:
-        return {"status": "reka_unavailable"}
+        return {"status": "reka_unavailable", "error": "Reka API key not configured or reka-api not installed"}
 
     try:
-        from reka import ChatMessage
-        response = client.chat.create(
+        response = await client.chat.create(
             messages=[
-                ChatMessage(
-                    content=[
+                {
+                    "role": "user",
+                    "content": [
                         {"type": "image_url", "image_url": image_url},
                         {
                             "type": "text",
@@ -96,10 +95,9 @@ async def analyze_bill_image(image_url: str) -> dict:
                             ),
                         },
                     ],
-                    role="user",
-                )
+                }
             ],
-            model="reka-flash",
+            model="reka-flash-3",
         )
         content = response.responses[0].message.content
         return _parse_json_response(content)
@@ -111,29 +109,17 @@ async def analyze_bill_image(image_url: str) -> dict:
 async def compare_bills(image_url_old: str, image_url_new: str) -> dict:
     """
     Compare two bill images to detect price changes, new fees, expired discounts.
-
-    Returns:
-        {
-            "provider_name": "Comcast",
-            "old_total": "$105.00",
-            "new_total": "$127.43",
-            "price_change": "+$22.43",
-            "change_percentage": "+21.4%",
-            "new_fees": ["Regional Sports Fee: $12.44"],
-            "removed_discounts": ["New Customer Discount: -$15.00 (expired)"],
-            "action_recommended": "Call retention department to negotiate rate back down"
-        }
     """
     client = get_client()
     if not client:
-        return {"status": "reka_unavailable"}
+        return {"status": "reka_unavailable", "error": "Reka API key not configured or reka-api not installed"}
 
     try:
-        from reka import ChatMessage
-        response = client.chat.create(
+        response = await client.chat.create(
             messages=[
-                ChatMessage(
-                    content=[
+                {
+                    "role": "user",
+                    "content": [
                         {"type": "image_url", "image_url": image_url_old},
                         {"type": "image_url", "image_url": image_url_new},
                         {
@@ -153,10 +139,9 @@ async def compare_bills(image_url_old: str, image_url_new: str) -> dict:
                             ),
                         },
                     ],
-                    role="user",
-                )
+                }
             ],
-            model="reka-core",
+            model="reka-flash-3",
         )
         content = response.responses[0].message.content
         return _parse_json_response(content)
@@ -168,21 +153,19 @@ async def compare_bills(image_url_old: str, image_url_new: str) -> dict:
 async def analyze_document(document_url: str, doc_type: str = "pdf") -> dict:
     """
     Analyze a financial document (PDF statement, contract, terms of service).
-
-    Returns structured data about charges, terms, consumer-favorable clauses.
     """
     client = get_client()
     if not client:
-        return {"status": "reka_unavailable"}
+        return {"status": "reka_unavailable", "error": "Reka API key not configured or reka-api not installed"}
 
     content_key = "pdf_url" if doc_type == "pdf" else "image_url"
 
     try:
-        from reka import ChatMessage
-        response = client.chat.create(
+        response = await client.chat.create(
             messages=[
-                ChatMessage(
-                    content=[
+                {
+                    "role": "user",
+                    "content": [
                         {"type": content_key, content_key: document_url},
                         {
                             "type": "text",
@@ -200,10 +183,9 @@ async def analyze_document(document_url: str, doc_type: str = "pdf") -> dict:
                             ),
                         },
                     ],
-                    role="user",
-                )
+                }
             ],
-            model="reka-flash",
+            model="reka-flash-3",
         )
         content = response.responses[0].message.content
         return _parse_json_response(content)
